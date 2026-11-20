@@ -10,66 +10,84 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, "/home/hatch/workspace/tools/airdrop-agent/.venv/lib/python3.12/site-packages")
 from PIL import Image
 from playwright.async_api import async_playwright
 
 HERE = Path(__file__).resolve().parent
-BASE = "http://localhost:8080"
-EXE = "/home/hatch/.cache/ms-playwright/chromium-1148/chrome-linux/chrome"
+BASE_URL = "http://localhost:8080"
+CHROME = "/home/hatch/.cache/ms-playwright/chromium-1148/chrome-linux/chrome"
+MAX_JPEG_BYTES = 262144
 
-EARNED = [
-    "Just Like Paradise", "Paradise Lost", "T**s Ass Drug Money",
-    "Vice City, Baby!", "Top Of The World, Ma", "You Gotta Know When to Get Off",
-    "Trust", "Break the Bank", "Family Matters", "DWNFALL", "Hi-Jacked",
+# The demo checklist: the 12 story trophies, so the shots show the tracker working.
+DEMO_EARNED = [
+    "Just Like Paradise",
+    "Paradise Lost",
+    "T**s Ass Drug Money",
+    "Vice City, Baby!",
+    "Top Of The World, Ma",
+    "You Gotta Know When to Get Off",
+    "Trust",
+    "Break the Bank",
+    "Family Matters",
+    "DWNFALL",
+    "Hi-Jacked",
     "Snow Storm",
 ]
 
+
+class Shot(NamedTuple):
+    filename: str
+    path: str
+    scroll_to: str | None
+
+
+# The judge reads the guides only through the screenshots, so every shot after the
+# cover scrolls to the trophy cards.
 SHOTS = [
-    # (file, url, scroll_target) — the judge reads the guides only through the
-    # screenshots, so every shot after the cover scrolls to the trophy cards.
-    ("1-checklist.jpg", "/?spoiler=off", None),
-    ("2-cards.jpg", "/?spoiler=off", "#cards"),
-    ("3-silver.jpg", "/?grade=silver&spoiler=off", "#cards"),
-    ("4-missable.jpg", "/?q=Positive%20Mental%20Attitude&spoiler=off", "#cards"),
+    Shot("1-checklist.jpg", "/?spoiler=off", None),
+    Shot("2-cards.jpg", "/?spoiler=off", "#cards"),
+    Shot("3-silver.jpg", "/?grade=silver&spoiler=off", "#cards"),
+    Shot("4-missable.jpg", "/?q=Positive%20Mental%20Attitude&spoiler=off", "#cards"),
 ]
 
 
-def to_jpeg(png_path: Path, jpg_path: Path) -> int:
-    img = Image.open(png_path).convert("RGB")
-    for q in (85, 78, 70, 60):
-        img.save(jpg_path, "JPEG", quality=q, optimize=True)
-        if jpg_path.stat().st_size <= 262144:
-            return q
-    return 60
+def shrink_to_jpeg(png_file: Path, jpg_file: Path) -> int:
+    picture = Image.open(png_file).convert("RGB")
+    for quality in (88, 80, 72, 62):
+        picture.save(jpg_file, "JPEG", quality=quality, optimize=True)
+        if jpg_file.stat().st_size <= MAX_JPEG_BYTES:
+            return quality
+    return 62
 
 
-async def main() -> None:
-    out_dir = HERE / "screenshots"
-    out_dir.mkdir(exist_ok=True)
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(executable_path=EXE, args=["--no-sandbox"])
-        for name, url, scroll in SHOTS:
+async def capture() -> None:
+    shots_dir = HERE / "screenshots"
+    shots_dir.mkdir(exist_ok=True)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        for shot in SHOTS:
             page = await browser.new_page(viewport={"width": 1280, "height": 800})
             await page.add_init_script(
-                f"localStorage.setItem('gta6-trophy-checklist', {json.dumps(json.dumps(EARNED))});"
+                f"localStorage.setItem('gta6-trophy-checklist', {json.dumps(json.dumps(DEMO_EARNED))});"
             )
-            errors = []
-            page.on("pageerror", lambda e: errors.append(str(e)))
-            await page.goto(BASE + url, wait_until="networkidle")
+            failures = []
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            await page.goto(BASE_URL + shot.path, wait_until="networkidle")
             await page.wait_for_timeout(700)
-            if scroll:
-                await page.evaluate(f"document.querySelector('{scroll}').scrollIntoView()")
+            if shot.scroll_to:
+                await page.evaluate(f"document.querySelector('{shot.scroll_to}').scrollIntoView()")
                 await page.wait_for_timeout(400)
-            png = out_dir / (name + ".png")
-            await page.screenshot(path=str(png))
-            q = to_jpeg(png, out_dir / name)
-            png.unlink()
-            size = (out_dir / name).stat().st_size
-            print(f"{name}: {size} bytes (jpeg q{q}) errors={errors or 'none'}")
+            png_file = shots_dir / (shot.filename + ".png")
+            await page.screenshot(path=str(png_file))
+            used_quality = shrink_to_jpeg(png_file, shots_dir / shot.filename)
+            png_file.unlink()
+            byte_count = (shots_dir / shot.filename).stat().st_size
+            print(f"{shot.filename}: {byte_count} bytes (jpeg q{used_quality}) errors={failures or 'none'}")
             await page.close()
         await browser.close()
 
 
-asyncio.run(main())
+asyncio.run(capture())

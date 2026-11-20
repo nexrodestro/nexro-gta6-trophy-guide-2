@@ -1,191 +1,169 @@
-// GTA VI trophy guide + tracker: a saved checklist over the 55 official trophies.
-// The data (names, descriptions, grades, guides, hidden/missable flags, sources)
-// comes from data/trophies.json. Progress lives in localStorage; export/import moves
-// it as JSON. Nothing here touches the network. URL parameters preset the view:
+// GTA VI trophy guide + tracker — the checklist app for all 55 official trophies.
+//
+// The trophy data (names, descriptions, grades, guides, tips, hidden/missable flags
+// and sources) is loaded from data/trophies.json. Progress is kept in localStorage
+// and can be exported to a file and imported back. Nothing here touches the network.
+// The address bar presets the view, so screenshots and deep links can set it:
 // ?grade=silver&kind=robbery&phase=2&q=bank&spoiler=off&view=roadmap
-const KEY = 'gta6-trophy-checklist';
-const SPOILER_KEY = 'gta6-trophy-spoiler';
+const STORE_KEY = 'gta6-trophy-checklist';
+const SPOILER_STORE_KEY = 'gta6-trophy-spoiler';
+const PROGRESS_FILE = 'gta6-trophy-progress.json';
 
-const params = new URLSearchParams(location.search);
-const $ = (id) => document.getElementById(id);
-const cardsEl = $('cards');
-const qEl = $('q');
-const gradeEl = $('grade');
-const kindEl = $('kind');
-const phaseEl = $('phase');
-const statusEl = $('status');
-const spoilerEl = $('spoiler');
+const params = new URLSearchParams(window.location.search);
+const byId = (id) => document.getElementById(id);
+const cardsBox = byId('cards');
+const searchBox = byId('q');
+const gradePick = byId('grade');
+const kindPick = byId('kind');
+const phasePick = byId('phase');
+const statusPick = byId('status');
+const spoilerBox = byId('spoiler');
 
-let earned = new Set(JSON.parse(localStorage.getItem(KEY) ?? '[]'));
-let spoiler = params.get('spoiler') === 'off' ? false
+const esc = (text) =>
+  String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+let earned = new Set(JSON.parse(localStorage.getItem(STORE_KEY) ?? '[]'));
+let spoilerOn = params.get('spoiler') === 'off' ? false
   : params.get('spoiler') === 'on' ? true
-  : localStorage.getItem(SPOILER_KEY) !== 'off';
-spoilerEl.checked = spoiler;
+  : localStorage.getItem(SPOILER_STORE_KEY) !== 'off';
+spoilerBox.checked = spoilerOn;
 
-const doc = await (await fetch('data/trophies.json')).json();
-const trophies = doc.trophies;
+const trophyResponse = await fetch('data/trophies.json');
+const trophyDoc = await trophyResponse.json();
+const trophies = trophyDoc.trophies;
 
-// Preset the filters from the URL (used by screenshots and deep links).
-for (const [el, key] of [[gradeEl, 'grade'], [kindEl, 'kind'], [phaseEl, 'phase'], [statusEl, 'status']]) {
-  const v = params.get(key);
-  if (v && [...el.options].some((o) => o.value === v)) el.value = v;
+// Take the filter values from the URL when the link sets them (screenshots and
+// deep links use this), and the search text too.
+for (const [control, key] of [[gradePick, 'grade'], [kindPick, 'kind'], [phasePick, 'phase'], [statusPick, 'status']]) {
+  const wanted = params.get(key);
+  if (wanted && [...control.options].some((option) => option.value === wanted)) control.value = wanted;
 }
-if (params.get('q')) qEl.value = params.get('q');
+if (params.get('q')) searchBox.value = params.get('q');
 
-function save() {
-  localStorage.setItem(KEY, JSON.stringify([...earned]));
-  localStorage.setItem(SPOILER_KEY, spoiler ? 'on' : 'off');
-}
-
-function visible(t) {
-  if (gradeEl.value !== 'all' && t.grade !== gradeEl.value) return false;
-  if (kindEl.value !== 'all' && t.kind !== kindEl.value) return false;
-  if (phaseEl.value !== 'all' && String(t.phase) !== phaseEl.value) return false;
-  if (statusEl.value === 'earned' && !earned.has(t.name)) return false;
-  if (statusEl.value === 'remaining' && earned.has(t.name)) return false;
-  const q = qEl.value.trim().toLowerCase();
-  if (q) {
-    const hay = `${t.name} ${t.description} ${t.guide} ${t.kind}`.toLowerCase();
-    if (!hay.includes(q)) return false;
-  }
-  return true;
+function persist() {
+  localStorage.setItem(STORE_KEY, JSON.stringify([...earned]));
+  localStorage.setItem(SPOILER_STORE_KEY, spoilerOn ? 'on' : 'off');
 }
 
-function flag(parent, text, cls) {
-  const el = document.createElement('span');
-  el.className = `flag${cls ? ' ' + cls : ''}`;
-  el.textContent = text;
-  parent.append(el);
+function passesFilters(trophy) {
+  if (gradePick.value !== 'all' && trophy.grade !== gradePick.value) return false;
+  if (kindPick.value !== 'all' && trophy.kind !== kindPick.value) return false;
+  if (phasePick.value !== 'all' && String(trophy.phase) !== phasePick.value) return false;
+  if (statusPick.value === 'earned' && !earned.has(trophy.name)) return false;
+  if (statusPick.value === 'remaining' && earned.has(trophy.name)) return false;
+  const query = searchBox.value.trim().toLowerCase();
+  if (!query) return true;
+  const haystack = `${trophy.name} ${trophy.description} ${trophy.guide} ${trophy.tip} ${trophy.kind}`.toLowerCase();
+  return haystack.includes(query);
 }
 
-function card(t) {
-  const isEarned = earned.has(t.name);
-  const hiddenNow = spoiler && t.hidden && !isEarned;
-  const el = document.createElement('article');
-  el.className = `card grade-${t.grade}${isEarned ? ' earned' : ''}`;
-
-  const top = document.createElement('div');
-  top.className = 'card-top';
-  const box = document.createElement('input');
-  box.type = 'checkbox';
-  box.checked = isEarned;
-  box.setAttribute('aria-label', `Mark ${hiddenNow ? 'hidden trophy' : t.name} as earned`);
-  box.addEventListener('change', () => {
-    if (box.checked) earned.add(t.name);
-    else earned.delete(t.name);
-    save();
-    render();
-  });
-
-  const body = document.createElement('div');
-  const badge = document.createElement('span');
-  badge.className = `badge ${t.grade}`;
-  badge.textContent = t.grade;
-  body.append(badge);
-
-  const name = document.createElement('h3');
-  name.className = 'trophy-name';
-  name.textContent = hiddenNow ? 'Hidden Trophy' : t.name;
-  body.append(name);
-
-  const official = document.createElement('p');
-  official.className = 'official';
-  official.textContent = hiddenNow
+function cardHtml(trophy) {
+  const got = earned.has(trophy.name);
+  const hiddenNow = spoilerOn && trophy.hidden && !got;
+  const displayName = hiddenNow ? 'Hidden Trophy' : trophy.name;
+  const displayDesc = hiddenNow
     ? 'Story trophy — hidden until you earn it.'
-    : `“${t.description}”`;
-  body.append(official);
-
-  const guide = document.createElement('p');
-  guide.className = 'guide';
-  guide.textContent = hiddenNow
+    : `“${trophy.description}”`;
+  const displayGuide = hiddenNow
     ? 'Hidden — tick it off once it pops to reveal the guide.'
-    : t.guide;
-  body.append(guide);
-
-  const flags = document.createElement('div');
-  flags.className = 'flags';
-  if (t.hidden) flag(flags, 'Hidden', 'hidden-flag');
-  if (t.missable) flag(flags, 'Missable', 'missable');
-  flag(flags, t.kind.replace('-', ' '), '');
-  flag(flags, `Phase ${t.phase}`, '');
-  body.append(flags);
-
-  const sources = document.createElement('p');
-  sources.className = 'sources';
-  sources.textContent = `Sources: ${t.sources.join(' · ')}`;
-  body.append(sources);
-
-  top.append(box, body);
-  el.append(top);
-  return el;
+    : trophy.guide;
+  const displayTip = hiddenNow ? '' : trophy.tip;
+  const flagBits = [
+    trophy.hidden ? '<span class="flag hidden-flag">Hidden</span>' : '',
+    trophy.missable ? '<span class="flag missable">Missable</span>' : '',
+    `<span class="flag">${esc(trophy.kind.replace('-', ' '))}</span>`,
+    `<span class="flag">Phase ${trophy.phase}</span>`,
+  ].join('');
+  return `<article class="card grade-${trophy.grade}${got ? ' earned' : ''}">` +
+    `<div class="card-top">` +
+    `<input type="checkbox" data-name="${esc(trophy.name)}" ${got ? 'checked' : ''} aria-label="Mark ${esc(displayName)} as earned">` +
+    `<div>` +
+    `<span class="badge ${trophy.grade}">${trophy.grade}</span>` +
+    `<h3 class="trophy-name">${esc(displayName)}</h3>` +
+    `<p class="official">${esc(displayDesc)}</p>` +
+    `<p class="guide">${esc(displayGuide)}</p>` +
+    (displayTip ? `<p class="guide"><strong>Tip:</strong> ${esc(displayTip)}</p>` : '') +
+    `<div class="flags">${flagBits}</div>` +
+    `<p class="sources">Sources: ${esc(trophy.sources.join(' · '))}</p>` +
+    `</div></div></article>`;
 }
 
-function render() {
-  cardsEl.replaceChildren();
-  const shown = trophies.filter(visible);
-  for (const t of shown) cardsEl.append(card(t));
-  if (!shown.length) {
-    const p = document.createElement('p');
-    p.className = 'empty';
-    p.textContent = 'No trophies match these filters.';
-    cardsEl.append(p);
-  }
+function paint() {
+  const shown = trophies.filter(passesFilters);
+  cardsBox.innerHTML = shown.length
+    ? shown.map(cardHtml).join('')
+    : '<p class="empty">No trophies match these filters.</p>';
 
-  $('progressText').textContent = `${earned.size} of ${trophies.length} earned`;
-  $('progressPct').textContent = `${Math.round((earned.size / trophies.length) * 100)}%`;
-  $('progressBar').style.width = `${(earned.size / trophies.length) * 100}%`;
-  const counts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
-  const totals = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
-  for (const t of trophies) {
-    totals[t.grade]++;
-    if (earned.has(t.name)) counts[t.grade]++;
+  byId('progressText').textContent = `${earned.size} of ${trophies.length} earned`;
+  byId('progressPct').textContent = `${Math.round((earned.size / trophies.length) * 100)}%`;
+  byId('progressBar').style.width = `${(earned.size / trophies.length) * 100}%`;
+  const gotByGrade = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
+  const totalByGrade = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
+  for (const trophy of trophies) {
+    totalByGrade[trophy.grade]++;
+    if (earned.has(trophy.name)) gotByGrade[trophy.grade]++;
   }
-  $('gradeCounts').textContent =
-    `Platinum ${counts.platinum}/${totals.platinum} · Gold ${counts.gold}/${totals.gold} · ` +
-    `Silver ${counts.silver}/${totals.silver} · Bronze ${counts.bronze}/${totals.bronze}`;
-  for (const el of document.querySelectorAll('.phase-count')) {
-    const ph = Number(el.dataset.phase);
-    const inPhase = trophies.filter((t) => t.phase === ph);
-    const done = inPhase.filter((t) => earned.has(t.name)).length;
-    el.textContent = `${done} of ${inPhase.length} trophies in this phase earned.`;
+  byId('gradeCounts').textContent =
+    `Platinum ${gotByGrade.platinum}/${totalByGrade.platinum} · Gold ${gotByGrade.gold}/${totalByGrade.gold} · ` +
+    `Silver ${gotByGrade.silver}/${totalByGrade.silver} · Bronze ${gotByGrade.bronze}/${totalByGrade.bronze}`;
+  for (const phaseLine of document.querySelectorAll('.phase-count')) {
+    const phase = Number(phaseLine.dataset.phase);
+    const inPhase = trophies.filter((trophy) => trophy.phase === phase);
+    const done = inPhase.filter((trophy) => earned.has(trophy.name)).length;
+    phaseLine.textContent = `${done} of ${inPhase.length} trophies in this phase earned.`;
   }
-  $('showing').textContent =
+  byId('showing').textContent =
     `Showing ${shown.length} of ${trophies.length} trophies` +
-    (spoiler ? ' · story trophies hidden until earned' : ' · spoilers shown');
+    (spoilerOn ? ' · story trophies hidden until earned' : ' · spoilers shown');
 }
 
-for (const el of [qEl, gradeEl, kindEl, phaseEl, statusEl]) {
-  el.addEventListener(el === qEl ? 'input' : 'change', render);
-}
-spoilerEl.addEventListener('change', () => {
-  spoiler = spoilerEl.checked;
-  save();
-  render();
+// One delegated listener handles every card checkbox, since paint() rebuilds them.
+cardsBox.addEventListener('change', (event) => {
+  const box = event.target;
+  if (!box.matches('input[type="checkbox"]')) return;
+  if (box.checked) earned.add(box.dataset.name);
+  else earned.delete(box.dataset.name);
+  persist();
+  paint();
 });
 
-$('export').addEventListener('click', () => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify([...earned].sort(), null, 2)], { type: 'application/json' }));
-  a.download = 'gta6-trophy-progress.json';
-  a.click();
+for (const control of [searchBox, gradePick, kindPick, phasePick, statusPick]) {
+  control.addEventListener(control === searchBox ? 'input' : 'change', paint);
+}
+spoilerBox.addEventListener('change', () => {
+  spoilerOn = spoilerBox.checked;
+  persist();
+  paint();
 });
-$('import').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+
+byId('export').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([JSON.stringify([...earned].sort(), null, 2)], { type: 'application/json' }));
+  link.download = PROGRESS_FILE;
+  link.click();
+});
+byId('import').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
   if (!file) return;
   const names = JSON.parse(await file.text());
-  earned = new Set(names.filter((n) => trophies.some((t) => t.name === n)));
-  save();
-  render();
+  earned = new Set(names.filter((name) => trophies.some((trophy) => trophy.name === name)));
+  persist();
+  paint();
 });
-$('reset').addEventListener('click', () => {
+byId('reset').addEventListener('click', () => {
   if (confirm('Clear all earned trophies?')) {
     earned = new Set();
-    save();
-    render();
+    persist();
+    paint();
   }
 });
 
-render();
+paint();
 if (params.get('view') === 'roadmap') {
-  document.getElementById('roadmap').scrollIntoView();
+  byId('roadmap').scrollIntoView();
 }

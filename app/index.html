@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GTA VI — Trophy Guide &amp; Tracker</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff2e88'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3E%E2%98%85%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff2e88'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3E%E2%98%85%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 <header class="hero">
@@ -14,22 +14,23 @@
     <h1>GTA VI Trophy Guide &amp; Tracker</h1>
     <p class="sub">All 55 official trophies — name, description and grade — with a guide in our own words for each, a saved checklist, and a road to the Platinum. Works fully offline; your progress never leaves this browser.</p>
   </div>
-  <div class="platinum-card" id="platinumCard">
+  <div id="platinumCard" class="platinum-card">
     <div class="platinum-grade">PLATINUM</div>
     <div class="platinum-name">Vice Got a Price!</div>
     <div class="platinum-desc">Congratulations! You&rsquo;re a Leonida Legend.</div>
     <div class="progress-line"><span id="progressText">0 of 55 earned</span><span id="progressPct">0%</span></div>
     <div class="bar"><div id="progressBar"></div></div>
-    <div class="grade-counts" id="gradeCounts"></div>
+    <div id="gradeCounts" class="grade-counts"></div>
   </div>
 </header>
+<noscript><p class="missable">This guide needs JavaScript to show the trophy list and tracker.</p></noscript>
 
-<aside class="missable" id="missableBox">
+<aside id="missableBox" class="missable">
   <strong>&#9888; One trophy can be missed.</strong>
   <span><b>Positive Mental Attitude</b> (meditate at all 18 spots) — the first meditation is Lucia&rsquo;s, at Jason&rsquo;s house in Chapter 1, after the mission <i>Down to Earth</i>. Find Lucia in the kitchen in the morning, follow her to the balcony and choose Accept. That spot is gone after Chapter 1, so do it before you leave the chapter and make a manual save right after.</span>
 </aside>
 
-<section class="roadmap" id="roadmap">
+<section id="roadmap" class="roadmap">
   <h2>Road to the Platinum &mdash; about 200 hours, difficulty 4/10</h2>
   <p class="roadmap-note">One playthrough, no mission replay, no difficulty settings, no online trophies. Keep a manual save at the start and end of each chapter (15 save slots). Cheats disable trophies and saving while active.</p>
   <div class="phases">
@@ -52,7 +53,7 @@
 </section>
 
 <div class="controls">
-  <label class="search">Search <input id="q" type="search" placeholder="trophy, mission, activity&hellip;" autocomplete="off"></label>
+  <label class="search">Search <input id="q" type="search" autocomplete="off" placeholder="trophy, mission, activity&hellip;"></label>
   <label>Grade <select id="grade"><option value="all">All grades</option><option value="platinum">Platinum</option><option value="gold">Gold</option><option value="silver">Silver</option><option value="bronze">Bronze</option></select></label>
   <label>Kind <select id="kind"><option value="all">All kinds</option><option value="story">Story</option><option value="chapter">Chapter</option><option value="mission">Mission</option><option value="side-character">Side character</option><option value="activity">Activity</option><option value="collectible">Collectible</option><option value="robbery">Robbery</option><option value="combat">Combat</option><option value="exploration">Exploration</option><option value="misc">Misc</option></select></label>
   <label>Phase <select id="phase"><option value="all">All phases</option><option value="1">Phase 1 — Story</option><option value="2">Phase 2 — 100%</option><option value="3">Phase 3 — Cleanup</option></select></label>
