@@ -1,7 +1,7 @@
 // GTA VI trophy guide + tracker: a saved checklist over the 55 official trophies.
-// Data (names, descriptions, grades, guides, hidden/missable flags, sources) comes
-// from data/trophies.json. Progress lives in localStorage; export/import moves it
-// as JSON. Nothing here touches the network. URL parameters preset the view:
+// The data (names, descriptions, grades, guides, hidden/missable flags, sources)
+// comes from data/trophies.json. Progress lives in localStorage; export/import moves
+// it as JSON. Nothing here touches the network. URL parameters preset the view:
 // ?grade=silver&kind=robbery&phase=2&q=bank&spoiler=off&view=roadmap
 const KEY = 'gta6-trophy-checklist';
 const SPOILER_KEY = 'gta6-trophy-spoiler';
@@ -25,7 +25,7 @@ spoilerEl.checked = spoiler;
 const doc = await (await fetch('data/trophies.json')).json();
 const trophies = doc.trophies;
 
-// Preset filters from the URL (used by screenshots and deep links).
+// Preset the filters from the URL (used by screenshots and deep links).
 for (const [el, key] of [[gradeEl, 'grade'], [kindEl, 'kind'], [phaseEl, 'phase'], [statusEl, 'status']]) {
   const v = params.get(key);
   if (v && [...el.options].some((o) => o.value === v)) el.value = v;
@@ -51,86 +51,79 @@ function visible(t) {
   return true;
 }
 
+function flag(parent, text, cls) {
+  const el = document.createElement('span');
+  el.className = `flag${cls ? ' ' + cls : ''}`;
+  el.textContent = text;
+  parent.append(el);
+}
+
+function card(t) {
+  const isEarned = earned.has(t.name);
+  const hiddenNow = spoiler && t.hidden && !isEarned;
+  const el = document.createElement('article');
+  el.className = `card grade-${t.grade}${isEarned ? ' earned' : ''}`;
+
+  const top = document.createElement('div');
+  top.className = 'card-top';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = isEarned;
+  box.setAttribute('aria-label', `Mark ${hiddenNow ? 'hidden trophy' : t.name} as earned`);
+  box.addEventListener('change', () => {
+    if (box.checked) earned.add(t.name);
+    else earned.delete(t.name);
+    save();
+    render();
+  });
+
+  const body = document.createElement('div');
+  const badge = document.createElement('span');
+  badge.className = `badge ${t.grade}`;
+  badge.textContent = t.grade;
+  body.append(badge);
+
+  const name = document.createElement('h3');
+  name.className = 'trophy-name';
+  name.textContent = hiddenNow ? 'Hidden Trophy' : t.name;
+  body.append(name);
+
+  const official = document.createElement('p');
+  official.className = 'official';
+  official.textContent = hiddenNow
+    ? 'Story trophy — hidden until you earn it.'
+    : `“${t.description}”`;
+  body.append(official);
+
+  const guide = document.createElement('p');
+  guide.className = 'guide';
+  guide.textContent = hiddenNow
+    ? 'Hidden — tick it off once it pops to reveal the guide.'
+    : t.guide;
+  body.append(guide);
+
+  const flags = document.createElement('div');
+  flags.className = 'flags';
+  if (t.hidden) flag(flags, 'Hidden', 'hidden-flag');
+  if (t.missable) flag(flags, 'Missable', 'missable');
+  flag(flags, t.kind.replace('-', ' '), '');
+  flag(flags, `Phase ${t.phase}`, '');
+  body.append(flags);
+
+  const sources = document.createElement('p');
+  sources.className = 'sources';
+  sources.textContent = `Sources: ${t.sources.join(' · ')}`;
+  body.append(sources);
+
+  top.append(box, body);
+  el.append(top);
+  return el;
+}
+
 function render() {
   cardsEl.replaceChildren();
   const shown = trophies.filter(visible);
-  for (const t of shown) {
-    const isEarned = earned.has(t.name);
-    const hiddenNow = spoiler && t.hidden && !isEarned;
-    const card = document.createElement('article');
-    card.className = `card grade-${t.grade}${isEarned ? ' earned' : ''}`;
-
-    const top = document.createElement('div');
-    top.className = 'card-top';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = isEarned;
-    box.setAttribute('aria-label', `Mark ${hiddenNow ? 'hidden trophy' : t.name} as earned`);
-    box.addEventListener('change', () => {
-      if (box.checked) earned.add(t.name);
-      else earned.delete(t.name);
-      save();
-      render();
-    });
-    const body = document.createElement('div');
-
-    const badge = document.createElement('span');
-    badge.className = `badge ${t.grade}`;
-    badge.textContent = t.grade;
-    body.append(badge);
-
-    const name = document.createElement('h3');
-    name.className = 'trophy-name';
-    name.textContent = hiddenNow ? 'Hidden Trophy' : t.name;
-    body.append(name);
-
-    const official = document.createElement('p');
-    official.className = 'official';
-    official.textContent = hiddenNow
-      ? 'Story trophy — hidden until you earn it.'
-      : `“${t.description}”`;
-    body.append(official);
-
-    const guide = document.createElement('p');
-    guide.className = 'guide';
-    guide.textContent = hiddenNow
-      ? 'Hidden — tick it off once it pops to reveal the guide.'
-      : t.guide;
-    body.append(guide);
-
-    const flags = document.createElement('div');
-    flags.className = 'flags';
-    if (t.hidden) {
-      const f = document.createElement('span');
-      f.className = 'flag hidden-flag';
-      f.textContent = 'Hidden';
-      flags.append(f);
-    }
-    if (t.missable) {
-      const f = document.createElement('span');
-      f.className = 'flag missable';
-      f.textContent = 'Missable';
-      flags.append(f);
-    }
-    const kind = document.createElement('span');
-    kind.className = 'flag';
-    kind.textContent = t.kind.replace('-', ' ');
-    flags.append(kind);
-    const phase = document.createElement('span');
-    phase.className = 'flag';
-    phase.textContent = `Phase ${t.phase}`;
-    flags.append(phase);
-    body.append(flags);
-
-    const sources = document.createElement('p');
-    sources.className = 'sources';
-    sources.textContent = `Sources: ${t.sources.join(' · ')}`;
-    body.append(sources);
-
-    top.append(box, body);
-    card.append(top);
-    cardsEl.append(card);
-  }
+  for (const t of shown) cardsEl.append(card(t));
   if (!shown.length) {
     const p = document.createElement('p');
     p.className = 'empty';

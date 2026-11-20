@@ -1,16 +1,17 @@
 // GTA VI trophy guide + tracker — make.fun gta6-trophy-guide-01 entry (Node 22, stdlib only).
 //
-// The guide is this directory's app/ folder: plain static files a browser opens at
-// app/index.html (ES module, CSS, no build step), fully offline — it loads nothing over
-// the network, and its trophy list and guides live in app/data/trophies.json (all 55
-// official PS5 trophies: name, description and grade per trophy, plus a guide in our
-// own words for each, with sources cited). The program hands it in: it copies app/ and
-// screenshots/ from beside this file to /output and writes /output/dossier.json, the
-// summary the judge reads (screenshots, the first load's files and bytes, and the
-// source), with the vendored make.fun library. Leave vendor/makefun-frontend.ts as it
-// is: the scorer requires dossier.json to be byte for byte what its own copy writes.
+// What this program does: it takes the guide in app/ — plain static files a browser
+// opens at app/index.html (an ES module plus CSS, no build step), fully offline —
+// and hands it in. The trophy list and the per-trophy guides live in
+// app/data/trophies.json: all 55 official PS5 trophies, each with its official name,
+// description and grade, a guide in our own words, and cited sources. The program
+// copies app/ and screenshots/ next to this file into /output and writes
+// /output/dossier.json, the summary the judge reads (screenshots, the files and bytes
+// of the first load, and the source), using the vendored make.fun library. Leave
+// vendor/makefun-frontend.ts alone: the scorer requires dossier.json to be byte for
+// byte what its own copy writes.
 //
-// Serve it locally with `node serve.ts`, then open http://localhost:8080.
+// Run it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
@@ -25,9 +26,9 @@ const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 const GRADES = new Set(['platinum', 'gold', 'silver', 'bronze']);
 const KINDS = new Set(['story', 'chapter', 'mission', 'side-character', 'activity', 'collectible', 'robbery', 'combat', 'exploration', 'misc']);
 
-// The scorer's trophies row: app/data/trophies.json must name each of the official 55
-// trophies (name match under the gate's nameKey) with a non-blank guide. Refuse to hand
-// in a guide that would fail that row instead of shipping a broken dossier.
+// The scorer's trophies row: app/data/trophies.json has to name every one of the
+// official 55 trophies (name match under the gate's nameKey) with a non-blank guide.
+// Refuse to hand in a guide that would fail that row rather than ship a broken dossier.
 function validateTrophies() {
   const raw = readFileSync(join(here, 'app', 'data', 'trophies.json'), 'utf8');
   const doc = JSON.parse(raw);
@@ -90,9 +91,10 @@ cpSync(join(here, 'app'), join(out, 'app'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
-// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files and directories in app/ or
-// 48 MiB of app files: app/ counts beside /output's own 1000-entry cap, its screenshots/ and dossier.json).
+// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes;
+// the others refuse an entry the scorer would refuse (more than 4 screenshots or one
+// over 256 KiB; more than 993 files and directories in app/ or 48 MiB of app files:
+// app/ counts beside /output's own 1000-entry cap, its screenshots/ and dossier.json).
 writeFileSync(
   join(out, 'dossier.json'),
   buildDossier(out, { text_max_bytes: 163840, screenshots: { max: 4, max_bytes: 262144 }, app_max_files: 993, app_max_bytes: 50331648 }),
